@@ -1,3 +1,4 @@
+
 import { JobType, CommentType, ReplyType } from '@/types';
 import { UserType } from '@/types';
 import axios from 'axios';
@@ -19,7 +20,14 @@ export const jobService = {
       console.log("Jobs response:", response.data);
       
       if (response.data.success) {
-        return response.data.jobs;
+        // Asegurarnos de que todos los trabajos tienen un array de comentarios, aunque sea vacío
+        const jobsWithComments = response.data.jobs.map((job: JobType) => {
+          return {
+            ...job,
+            comments: job.comments || []
+          };
+        });
+        return jobsWithComments;
       }
       return [];
     } catch (error) {
@@ -30,6 +38,14 @@ export const jobService = {
         title: "Error",
         description: `Error al obtener las propuestas: ${axios.isAxiosError(error) ? error.message : 'Error desconocido'}`
       });
+      
+      // Como fallback, intentar usar datos locales si hay disponibles
+      const cachedJobs = localStorage.getItem('cachedJobs');
+      if (cachedJobs) {
+        console.log("Usando trabajos en caché");
+        return JSON.parse(cachedJobs);
+      }
+      
       throw error;
     }
   },
@@ -221,17 +237,20 @@ export const jobService = {
       });
       
       if (response.data.success) {
+        console.log("Comentario creado en el backend:", response.data.comment);
         return response.data.comment;
       }
       
+      // Si el backend responde pero no con éxito, usamos el fallback
+      console.warn("El backend respondió sin éxito, usando fallback local");
+      
       // Temporary client-side fallback until backend is fully implemented
-      // This should be removed once the backend is working
       const token = localStorage.getItem('token');
       const userInfo = token ? JSON.parse(atob(token.split('.')[1])) : null;
       
       const newComment: CommentType = {
         id: uuidv4(),
-        userId: userInfo?.userId || 'unknown',
+        userId: userInfo?.userId || userInfo?.id || 'unknown',
         jobId,
         text,
         content: text,
@@ -240,18 +259,38 @@ export const jobService = {
         userPhoto: userInfo?.photoURL || '',
         replies: []
       };
+      
+      console.log("Comentario fallback creado:", newComment);
+      
+      // Guardar en localStorage como caché temporal
+      try {
+        const cachedJobs = localStorage.getItem('cachedJobs');
+        if (cachedJobs) {
+          const jobs = JSON.parse(cachedJobs);
+          const updatedJobs = jobs.map((job: JobType) => {
+            if (job.id === jobId) {
+              const comments = [...(job.comments || []), newComment];
+              return { ...job, comments };
+            }
+            return job;
+          });
+          localStorage.setItem('cachedJobs', JSON.stringify(updatedJobs));
+        }
+      } catch (e) {
+        console.error("Error al guardar en caché el comentario:", e);
+      }
       
       return newComment;
     } catch (error) {
       console.error("Error adding comment:", error);
       
-      // Temporary client-side fallback until backend is fully implemented
+      // Fallback si hay un error con el backend
       const token = localStorage.getItem('token');
       const userInfo = token ? JSON.parse(atob(token.split('.')[1])) : null;
       
       const newComment: CommentType = {
         id: uuidv4(),
-        userId: userInfo?.userId || 'unknown',
+        userId: userInfo?.userId || userInfo?.id || 'unknown',
         jobId,
         text,
         content: text,
@@ -260,6 +299,8 @@ export const jobService = {
         userPhoto: userInfo?.photoURL || '',
         replies: []
       };
+      
+      console.log("Comentario creado como fallback (error):", newComment);
       
       return newComment;
     }

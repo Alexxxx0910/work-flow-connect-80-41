@@ -51,7 +51,9 @@ export const JobProvider = ({ children }: { children: React.ReactNode }) => {
   const refreshJobs = async () => {
     setLoading(true);
     try {
+      console.log("Refrescando trabajos...");
       const allJobs = await jobService.getAllJobs();
+      console.log("Trabajos obtenidos:", allJobs.length);
       setJobs(allJobs);
       setFilteredJobs(allJobs);
 
@@ -118,13 +120,16 @@ export const JobProvider = ({ children }: { children: React.ReactNode }) => {
     }
 
     try {
+      console.log("Añadiendo comentario al trabajo", jobId);
       const comment = await jobService.addComment(jobId, text);
+      console.log("Comentario creado:", comment);
       
-      // Update the jobs state with the new comment
+      // Actualizamos el estado de los trabajos para incluir el nuevo comentario
       setJobs(prevJobs => {
         return prevJobs.map(job => {
           if (job.id === jobId) {
             const updatedComments = [...(job.comments || []), comment];
+            console.log("Comentarios actualizados:", updatedComments.length);
             return { ...job, comments: updatedComments };
           }
           return job;
@@ -160,7 +165,7 @@ export const JobProvider = ({ children }: { children: React.ReactNode }) => {
     try {
       const reply = await jobService.addReply(commentId, text);
       
-      // Update the jobs state with the new reply
+      // Actualizar el estado de los trabajos con la nueva respuesta
       setJobs(prevJobs => {
         return prevJobs.map(job => {
           if (job.id === jobId) {

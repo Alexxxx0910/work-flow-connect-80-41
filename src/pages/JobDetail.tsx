@@ -25,7 +25,7 @@ const JobDetail = () => {
   const navigate = useNavigate();
   
   // Hooks de contexto para acceder a datos y funcionalidades
-  const { getJobById, addComment, jobs } = useJobs(); 
+  const { getJobById, addComment, jobs, refreshJobs } = useJobs(); 
   const { currentUser } = useAuth(); // Información del usuario actual
   const { createPrivateChat } = useChat(); // Funcionalidades de chat
   const { getUserById } = useData(); // Para obtener datos de usuarios
@@ -245,8 +245,20 @@ const JobDetail = () => {
     setIsSubmittingComment(true);
     try {
       // Llamar a la función para añadir el comentario a la propuesta
-      await addComment(job.id, commentText);
+      const newComment = await addComment(job.id, commentText);
       setCommentText(''); // Limpiar el campo de comentario
+      
+      // Actualizar el estado local del trabajo para incluir el nuevo comentario
+      if (newComment && job) {
+        const updatedComments = [...(job.comments || []), newComment];
+        setJob({
+          ...job,
+          comments: updatedComments
+        });
+        
+        // También actualizar la lista completa de trabajos para mantener la coherencia
+        await refreshJobs();
+      }
       
       toast({
         title: "Comentario enviado",
