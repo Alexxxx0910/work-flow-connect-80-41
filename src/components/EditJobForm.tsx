@@ -1,195 +1,136 @@
 
-import React, { useState, useEffect } from 'react';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Badge } from '@/components/ui/badge';
-import { X } from 'lucide-react';
-import { JobType } from '@/contexts/JobContext';
-import { useData } from '@/contexts/DataContext';
+import React, { useState } from 'react';
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { JobType } from "@/types";
 
-type EditJobFormProps = {
+interface EditJobFormProps {
   job: JobType;
-  onSubmit: (jobData: Partial<JobType>) => Promise<void>;
+  onSubmit: (data: Partial<JobType>) => Promise<void>;
   onCancel: () => void;
   isSubmitting: boolean;
-};
+}
 
 const EditJobForm = ({ job, onSubmit, onCancel, isSubmitting }: EditJobFormProps) => {
-  const { jobCategories, skillsList } = useData();
-
   const [formData, setFormData] = useState({
-    title: job.title,
-    description: job.description,
-    budget: job.budget,
-    category: job.category,
-    skills: [...job.skills],
-    status: job.status
+    title: job.title || '',
+    description: job.description || '',
+    budget: job.budget || 0,
+    category: job.category || '',
+    status: job.status || 'open',
   });
 
-  const [selectedSkill, setSelectedSkill] = useState('');
-
-  const handleAddSkill = (skill: string) => {
-    if (!skill || formData.skills.includes(skill)) return;
-    setFormData({
-      ...formData,
-      skills: [...formData.skills, skill]
-    });
-    setSelectedSkill('');
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    const { name, value } = e.target;
+    setFormData({ ...formData, [name]: value });
   };
-  
-  const handleRemoveSkill = (skill: string) => {
-    setFormData({
-      ...formData,
-      skills: formData.skills.filter(s => s !== skill)
-    });
+
+  const handleSelectChange = (name: string, value: string) => {
+    setFormData({ ...formData, [name]: value });
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    await onSubmit(formData);
+    await onSubmit({
+      ...formData,
+      budget: Number(formData.budget),
+    });
   };
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       <div className="space-y-2">
-        <Label htmlFor="title" className="dark:text-gray-200">Título</Label>
+        <Label htmlFor="title">Título</Label>
         <Input
           id="title"
+          name="title"
           value={formData.title}
-          onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-          className="dark:bg-gray-800 dark:border-gray-700 dark:text-white"
+          onChange={handleChange}
           required
         />
       </div>
-
+      
       <div className="space-y-2">
-        <Label htmlFor="description" className="dark:text-gray-200">Descripción</Label>
+        <Label htmlFor="description">Descripción</Label>
         <Textarea
           id="description"
+          name="description"
           value={formData.description}
-          onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-          className="min-h-[120px] dark:bg-gray-800 dark:border-gray-700 dark:text-white"
+          onChange={handleChange}
+          rows={4}
           required
         />
       </div>
-
-      <div className="space-y-2">
-        <Label htmlFor="budget" className="dark:text-gray-200">Presupuesto ($)</Label>
-        <Input
-          id="budget"
-          type="number"
-          min="1"
-          value={formData.budget}
-          onChange={(e) => setFormData({ ...formData, budget: Number(e.target.value) })}
-          className="dark:bg-gray-800 dark:border-gray-700 dark:text-white"
-          required
-        />
-      </div>
-
-      <div className="space-y-2">
-        <Label htmlFor="category" className="dark:text-gray-200">Categoría</Label>
-        <Select value={formData.category} onValueChange={(value) => setFormData({ ...formData, category: value })}>
-          <SelectTrigger className="dark:bg-gray-800 dark:border-gray-700 dark:text-white">
-            <SelectValue placeholder="Selecciona una categoría" />
-          </SelectTrigger>
-          <SelectContent className="dark:bg-gray-800 dark:border-gray-700">
-            {jobCategories.map((category) => (
-              <SelectItem 
-                key={category} 
-                value={category}
-                className="dark:text-white dark:focus:text-white dark:focus:bg-gray-700"
-              >
-                {category}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-
-      <div className="space-y-2">
-        <Label htmlFor="status" className="dark:text-gray-200">Estado</Label>
-        <Select 
-          value={formData.status} 
-          onValueChange={(value: 'open' | 'in-progress' | 'completed') => 
-            setFormData({ ...formData, status: value })
-          }
-        >
-          <SelectTrigger className="dark:bg-gray-800 dark:border-gray-700 dark:text-white">
-            <SelectValue placeholder="Selecciona un estado" />
-          </SelectTrigger>
-          <SelectContent className="dark:bg-gray-800 dark:border-gray-700">
-            <SelectItem value="open" className="dark:text-white dark:focus:text-white dark:focus:bg-gray-700">
-              Abierto
-            </SelectItem>
-            <SelectItem value="in-progress" className="dark:text-white dark:focus:text-white dark:focus:bg-gray-700">
-              En progreso
-            </SelectItem>
-            <SelectItem value="completed" className="dark:text-white dark:focus:text-white dark:focus:bg-gray-700">
-              Completado
-            </SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
-
-      <div className="space-y-2">
-        <Label className="dark:text-gray-200">Habilidades requeridas</Label>
-        <div className="flex flex-wrap gap-2 mb-2">
-          {formData.skills.map((skill, index) => (
-            <Badge key={index} className="bg-wfc-purple-medium text-white hover:bg-wfc-purple-medium">
-              {skill}
-              <button 
-                type="button"
-                className="ml-1 hover:bg-wfc-purple rounded-full" 
-                onClick={() => handleRemoveSkill(skill)}
-              >
-                <X className="h-3 w-3" />
-              </button>
-            </Badge>
-          ))}
+      
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="space-y-2">
+          <Label htmlFor="budget">Presupuesto</Label>
+          <Input
+            id="budget"
+            name="budget"
+            type="number"
+            value={formData.budget}
+            onChange={handleChange}
+            min={0}
+            required
+          />
         </div>
         
-        <div className="flex flex-wrap gap-2">
-          <Select value={selectedSkill} onValueChange={handleAddSkill}>
-            <SelectTrigger className="w-full dark:bg-gray-800 dark:border-gray-700 dark:text-white">
-              <SelectValue placeholder="Seleccionar habilidad" />
+        <div className="space-y-2">
+          <Label htmlFor="category">Categoría</Label>
+          <Select
+            value={formData.category}
+            onValueChange={(value) => handleSelectChange('category', value)}
+          >
+            <SelectTrigger id="category">
+              <SelectValue placeholder="Seleccionar categoría" />
             </SelectTrigger>
-            <SelectContent className="dark:bg-gray-800 dark:border-gray-700">
-              {skillsList
-                .filter(skill => !formData.skills.includes(skill))
-                .map((skill, index) => (
-                  <SelectItem 
-                    key={index} 
-                    value={skill}
-                    className="dark:text-white dark:focus:text-white dark:focus:bg-gray-700"
-                  >
-                    {skill}
-                  </SelectItem>
-                ))
-              }
+            <SelectContent>
+              <SelectItem value="web">Desarrollo Web</SelectItem>
+              <SelectItem value="mobile">Desarrollo Móvil</SelectItem>
+              <SelectItem value="design">Diseño</SelectItem>
+              <SelectItem value="writing">Redacción</SelectItem>
+              <SelectItem value="marketing">Marketing</SelectItem>
+              <SelectItem value="other">Otro</SelectItem>
             </SelectContent>
           </Select>
         </div>
       </div>
-
-      <div className="flex space-x-2 pt-4">
-        <Button
-          type="submit"
+      
+      <div className="space-y-2">
+        <Label htmlFor="status">Estado</Label>
+        <Select
+          value={formData.status}
+          onValueChange={(value) => handleSelectChange('status', value as "open" | "in progress" | "completed")}
+        >
+          <SelectTrigger id="status">
+            <SelectValue placeholder="Seleccionar estado" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="open">Abierto</SelectItem>
+            <SelectItem value="in progress">En progreso</SelectItem>
+            <SelectItem value="completed">Completado</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+      
+      <div className="flex justify-end space-x-3 pt-4">
+        <Button 
+          type="button" 
+          variant="outline" 
+          onClick={onCancel}
+        >
+          Cancelar
+        </Button>
+        <Button 
+          type="submit" 
           className="bg-wfc-purple hover:bg-wfc-purple-medium"
           disabled={isSubmitting}
         >
-          {isSubmitting ? "Guardando..." : "Guardar cambios"}
-        </Button>
-        <Button
-          type="button"
-          variant="outline"
-          onClick={onCancel}
-          disabled={isSubmitting}
-          className="dark:bg-gray-800 dark:border-gray-700 dark:text-white hover:dark:bg-gray-700"
-        >
-          Cancelar
+          {isSubmitting ? 'Guardando...' : 'Guardar cambios'}
         </Button>
       </div>
     </form>

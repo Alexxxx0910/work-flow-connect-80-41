@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useRef } from 'react';
 import MainLayout from '@/components/Layout/MainLayout';
 import { useAuth } from '@/contexts/AuthContext';
@@ -33,12 +32,11 @@ import EditJobForm from '@/components/EditJobForm';
 const ProfilePage = () => {
   const { currentUser, updateUserProfile, uploadProfilePhoto } = useAuth();
   const { skillsList, loadData } = useData();
-  const { jobs, loadJobs } = useJobs();
+  const { userJobs, refreshJobs, updateJob, deleteJob } = useJobs();
   
   const [isUpdating, setIsUpdating] = useState(false);
   const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
   const [selectedImage, setSelectedImage] = useState<File | null>(null);
-  const [userJobs, setUserJobs] = useState<JobType[]>([]);
   const [savedJobs, setSavedJobs] = useState<JobType[]>([]);
   const [selectedSkill, setSelectedSkill] = useState('');
   const [editingJob, setEditingJob] = useState<JobType | null>(null);
@@ -66,8 +64,8 @@ const ProfilePage = () => {
   }, [currentUser]);
 
   useEffect(() => {
-    if (Array.isArray(jobs)) {
-      setUserJobs(jobs.filter(job => job.userId === currentUser?.id));
+    if (Array.isArray(userJobs)) {
+      setUserJobs(userJobs.filter(job => job.userId === currentUser?.id));
     }
     
     const loadSavedJobs = async () => {
@@ -85,7 +83,7 @@ const ProfilePage = () => {
     };
     
     loadSavedJobs();
-  }, [jobs, currentUser]);
+  }, [userJobs, currentUser]);
   
   const handleEditJob = (job: JobType) => {
     setEditingJob(job);
@@ -100,18 +98,10 @@ const ProfilePage = () => {
     
     setIsSubmittingJob(true);
     try {
-      // Implementar updateJob si existe
-      // await updateJob(editingJob.id, jobData);
-      
-      await loadJobs();
-      await loadData();
-      
+      // Use the updateJob function from JobContext
+      await updateJob(editingJob.id, jobData);
+      await refreshJobs();
       setEditingJob(null);
-      
-      toast({
-        title: "Propuesta actualizada",
-        description: "Los cambios han sido guardados correctamente"
-      });
     } catch (error) {
       toast({
         variant: "destructive",
@@ -125,15 +115,11 @@ const ProfilePage = () => {
   
   const handleDeleteJob = async (jobId: string) => {
     try {
-      // Implementar deleteJob si existe
-      // await deleteJob(jobId);
-      
-      setUserJobs(userJobs.filter(job => job.id !== jobId));
-      
-      toast({
-        title: "Propuesta eliminada",
-        description: "La propuesta ha sido eliminada correctamente"
-      });
+      // Use the deleteJob function from JobContext
+      const success = await deleteJob(jobId);
+      if (success) {
+        await refreshJobs();
+      }
     } catch (error) {
       toast({
         variant: "destructive",
