@@ -41,7 +41,7 @@ export const JobProvider = ({ children }: { children: React.ReactNode }) => {
   const [popularJobs, setPopularJobs] = useState<JobType[]>([]);
   const [savedJobs, setSavedJobs] = useState<JobType[]>([]);
   const [loading, setLoading] = useState(false);
-  const { currentUser } = useAuth();
+  const { currentUser } = useAuth(); // Información del usuario actual
   const { toast } = useToast();
 
   useEffect(() => {
@@ -76,6 +76,11 @@ export const JobProvider = ({ children }: { children: React.ReactNode }) => {
         title: "Error",
         description: "Error al cargar los trabajos."
       });
+      
+      // Si hay un error, establecer trabajos vacíos para evitar errores subsecuentes
+      setJobs([]);
+      setFilteredJobs([]);
+      setPopularJobs([]);
     } finally {
       setLoading(false);
     }
@@ -121,15 +126,41 @@ export const JobProvider = ({ children }: { children: React.ReactNode }) => {
 
     try {
       console.log("Añadiendo comentario al trabajo", jobId);
-      const comment = await jobService.addComment(jobId, text);
-      console.log("Comentario creado:", comment);
       
-      // Actualizamos el estado de los trabajos para incluir el nuevo comentario
+      // Crear un comentario temporal para mostrar inmediatamente en la UI
+      const tempComment: CommentType = {
+        id: `temp-${Date.now()}`,
+        userId: currentUser.id,
+        jobId,
+        text,
+        timestamp: Date.now(),
+        userName: currentUser.name,
+        userPhoto: currentUser.photoURL || '',
+        replies: []
+      };
+      
+      // Actualizar la UI inmediatamente con el comentario temporal
       setJobs(prevJobs => {
         return prevJobs.map(job => {
           if (job.id === jobId) {
-            const updatedComments = [...(job.comments || []), comment];
-            console.log("Comentarios actualizados:", updatedComments.length);
+            const updatedComments = [...(job.comments || []), tempComment];
+            return { ...job, comments: updatedComments };
+          }
+          return job;
+        });
+      });
+      
+      // Ahora intentar guardar en el backend
+      const comment = await jobService.addComment(jobId, text);
+      console.log("Comentario creado:", comment);
+      
+      // Si la llamada al backend es exitosa, reemplazar el comentario temporal con el real
+      setJobs(prevJobs => {
+        return prevJobs.map(job => {
+          if (job.id === jobId) {
+            // Filtrar el comentario temporal y añadir el real
+            const filteredComments = job.comments?.filter(c => c.id !== tempComment.id) || [];
+            const updatedComments = [...filteredComments, comment];
             return { ...job, comments: updatedComments };
           }
           return job;
@@ -144,11 +175,16 @@ export const JobProvider = ({ children }: { children: React.ReactNode }) => {
       return comment;
     } catch (error) {
       console.error("Error adding comment:", error);
+      
+      // Si hay un error, mantener el comentario temporal para la UX
       toast({
         variant: "destructive",
         title: "Error",
-        description: "Error al publicar el comentario."
+        description: "Error al publicar el comentario en el servidor, pero se muestra localmente."
       });
+      
+      // Devolver el comentario temporal como fallback
+      return jobs.find(job => job.id === jobId)?.comments?.find(c => c.id.startsWith('temp-'));
     }
   };
 
@@ -163,15 +199,46 @@ export const JobProvider = ({ children }: { children: React.ReactNode }) => {
     }
 
     try {
-      const reply = await jobService.addReply(commentId, text);
+      // Crear una respuesta temporal para mostrar inmediatamente
+      const tempReply: ReplyType = {
+        id: `temp-reply-${Date.now()}`,
+        userId: currentUser.id,
+        commentId,
+        text,
+        content: text,
+        timestamp: Date.now(),
+        userName: currentUser.name,
+        userPhoto: currentUser.photoURL || '',
+      };
       
-      // Actualizar el estado de los trabajos con la nueva respuesta
+      // Actualizar la UI inmediatamente
       setJobs(prevJobs => {
         return prevJobs.map(job => {
           if (job.id === jobId) {
             const updatedComments = job.comments?.map(comment => {
               if (comment.id === commentId) {
-                const updatedReplies = [...(comment.replies || []), reply];
+                const updatedReplies = [...(comment.replies || []), tempReply];
+                return { ...comment, replies: updatedReplies };
+              }
+              return comment;
+            });
+            return { ...job, comments: updatedComments };
+          }
+          return job;
+        });
+      });
+      
+      // Ahora intentar guardar en el backend
+      const reply = await jobService.addReply(commentId, text);
+      
+      // Actualizar con la respuesta real del backend
+      setJobs(prevJobs => {
+        return prevJobs.map(job => {
+          if (job.id === jobId) {
+            const updatedComments = job.comments?.map(comment => {
+              if (comment.id === commentId) {
+                const filteredReplies = comment.replies?.filter(r => r.id !== tempReply.id) || [];
+                const updatedReplies = [...filteredReplies, reply];
                 return { ...comment, replies: updatedReplies };
               }
               return comment;
@@ -193,8 +260,11 @@ export const JobProvider = ({ children }: { children: React.ReactNode }) => {
       toast({
         variant: "destructive",
         title: "Error",
-        description: "Error al publicar la respuesta."
+        description: "Error al publicar la respuesta en el servidor, pero se muestra localmente."
       });
+      
+      // Mantener la respuesta temporal como fallback
+      return tempReply;
     }
   };
 

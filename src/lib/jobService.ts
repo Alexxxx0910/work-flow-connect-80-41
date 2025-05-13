@@ -11,9 +11,12 @@ export const jobService = {
   getAllJobs: async (): Promise<JobType[]> => {
     try {
       console.log(`Fetching jobs from: ${API_URL}/jobs`);
+      const token = localStorage.getItem('token');
+      console.log('Token available:', !!token);
+      
       const response = await axios.get(`${API_URL}/jobs`, {
         headers: {
-          Authorization: `Bearer ${localStorage.getItem('token')}`
+          Authorization: token ? `Bearer ${token}` : ''
         }
       });
       
@@ -27,8 +30,24 @@ export const jobService = {
             comments: job.comments || []
           };
         });
+        
+        // Cachear los trabajos para modo offline o fallbacks
+        try {
+          localStorage.setItem('cachedJobs', JSON.stringify(jobsWithComments));
+        } catch (e) {
+          console.warn("No se pudo guardar los trabajos en caché", e);
+        }
+        
         return jobsWithComments;
       }
+      
+      // Si no hay datos pero el servidor respondió, usar caché
+      const cachedJobs = localStorage.getItem('cachedJobs');
+      if (cachedJobs) {
+        console.log("No hay datos del servidor, usando trabajos en caché");
+        return JSON.parse(cachedJobs);
+      }
+      
       return [];
     } catch (error) {
       console.error("Error fetching jobs:", error);
@@ -46,7 +65,8 @@ export const jobService = {
         return JSON.parse(cachedJobs);
       }
       
-      throw error;
+      // Si no hay caché, devolver array vacío para evitar errores
+      return [];
     }
   },
   
@@ -226,13 +246,15 @@ export const jobService = {
   addComment: async (jobId: string, text: string): Promise<CommentType> => {
     try {
       console.log(`Adding comment to job ${jobId}: ${text}`);
+      const token = localStorage.getItem('token');
+      console.log('Token for comment:', token ? 'Available' : 'Not available');
       
       // In a real implementation, this would be a backend call
       const response = await axios.post(`${API_URL}/jobs/${jobId}/comments`, {
         text
       }, {
         headers: {
-          Authorization: `Bearer ${localStorage.getItem('token')}`
+          Authorization: token ? `Bearer ${token}` : ''
         }
       });
       
@@ -243,10 +265,21 @@ export const jobService = {
       
       // Si el backend responde pero no con éxito, usamos el fallback
       console.warn("El backend respondió sin éxito, usando fallback local");
+      throw new Error('Comentario no pudo ser guardado en el servidor');
+    } catch (error) {
+      console.error("Error adding comment:", error);
       
-      // Temporary client-side fallback until backend is fully implemented
+      // Fallback - crear un comentario local
       const token = localStorage.getItem('token');
-      const userInfo = token ? JSON.parse(atob(token.split('.')[1])) : null;
+      let userInfo;
+      
+      try {
+        if (token) {
+          userInfo = JSON.parse(atob(token.split('.')[1]));
+        }
+      } catch (e) {
+        console.error("Error decodificando token:", e);
+      }
       
       const newComment: CommentType = {
         id: uuidv4(),
@@ -260,9 +293,9 @@ export const jobService = {
         replies: []
       };
       
-      console.log("Comentario fallback creado:", newComment);
+      console.log("Comentario creado localmente:", newComment);
       
-      // Guardar en localStorage como caché temporal
+      // Actualizar la caché local con el nuevo comentario
       try {
         const cachedJobs = localStorage.getItem('cachedJobs');
         if (cachedJobs) {
@@ -281,41 +314,20 @@ export const jobService = {
       }
       
       return newComment;
-    } catch (error) {
-      console.error("Error adding comment:", error);
-      
-      // Fallback si hay un error con el backend
-      const token = localStorage.getItem('token');
-      const userInfo = token ? JSON.parse(atob(token.split('.')[1])) : null;
-      
-      const newComment: CommentType = {
-        id: uuidv4(),
-        userId: userInfo?.userId || userInfo?.id || 'unknown',
-        jobId,
-        text,
-        content: text,
-        timestamp: Date.now(),
-        userName: userInfo?.name || 'Usuario',
-        userPhoto: userInfo?.photoURL || '',
-        replies: []
-      };
-      
-      console.log("Comentario creado como fallback (error):", newComment);
-      
-      return newComment;
     }
   },
 
   addReply: async (commentId: string, text: string): Promise<ReplyType> => {
     try {
       console.log(`Adding reply to comment ${commentId}: ${text}`);
+      const token = localStorage.getItem('token');
       
       // In a real implementation, this would be a backend call
       const response = await axios.post(`${API_URL}/comments/${commentId}/replies`, {
         text
       }, {
         headers: {
-          Authorization: `Bearer ${localStorage.getItem('token')}`
+          Authorization: token ? `Bearer ${token}` : ''
         }
       });
       
@@ -323,33 +335,26 @@ export const jobService = {
         return response.data.reply;
       }
       
-      // Temporary client-side fallback until backend is fully implemented
-      // This should be removed once the backend is working
-      const token = localStorage.getItem('token');
-      const userInfo = token ? JSON.parse(atob(token.split('.')[1])) : null;
-      
-      const newReply: ReplyType = {
-        id: uuidv4(),
-        userId: userInfo?.userId || 'unknown',
-        commentId,
-        text,
-        content: text,
-        timestamp: Date.now(),
-        userName: userInfo?.name || 'Usuario',
-        userPhoto: userInfo?.photoURL || '',
-      };
-      
-      return newReply;
+      // Si el backend responde pero no con éxito, usamos el fallback
+      throw new Error('Respuesta no pudo ser guardada en el servidor');
     } catch (error) {
       console.error("Error adding reply:", error);
       
-      // Temporary client-side fallback until backend is fully implemented
+      // Fallback - crear una respuesta local
       const token = localStorage.getItem('token');
-      const userInfo = token ? JSON.parse(atob(token.split('.')[1])) : null;
+      let userInfo;
+      
+      try {
+        if (token) {
+          userInfo = JSON.parse(atob(token.split('.')[1]));
+        }
+      } catch (e) {
+        console.error("Error decodificando token:", e);
+      }
       
       const newReply: ReplyType = {
         id: uuidv4(),
-        userId: userInfo?.userId || 'unknown',
+        userId: userInfo?.userId || userInfo?.id || 'unknown',
         commentId,
         text,
         content: text,
@@ -358,6 +363,7 @@ export const jobService = {
         userPhoto: userInfo?.photoURL || '',
       };
       
+      console.log("Respuesta creada localmente:", newReply);
       return newReply;
     }
   },
