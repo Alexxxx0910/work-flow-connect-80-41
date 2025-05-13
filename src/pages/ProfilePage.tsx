@@ -1,3 +1,4 @@
+
 import { useState, useEffect, useRef } from 'react';
 import MainLayout from '@/components/Layout/MainLayout';
 import { useAuth } from '@/contexts/AuthContext';
@@ -32,7 +33,7 @@ import EditJobForm from '@/components/EditJobForm';
 const ProfilePage = () => {
   const { currentUser, updateUserProfile, uploadProfilePhoto } = useAuth();
   const { skillsList, loadData } = useData();
-  const { userJobs, refreshJobs, updateJob, deleteJob } = useJobs();
+  const { userJobs = [], refreshJobs, updateJob, deleteJob } = useJobs();
   
   const [isUpdating, setIsUpdating] = useState(false);
   const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
@@ -58,15 +59,16 @@ const ProfilePage = () => {
         name: currentUser.name || '',
         email: currentUser.email || '',
         bio: currentUser.bio || '',
-        skills: currentUser.skills || [],
+        skills: Array.isArray(currentUser.skills) ? currentUser.skills : [],
       });
     }
   }, [currentUser]);
 
   useEffect(() => {
-    if (Array.isArray(userJobs)) {
-      setUserJobs(userJobs.filter(job => job.userId === currentUser?.id));
-    }
+    // Filter userJobs to only include those that belong to the current user
+    const filteredJobs = Array.isArray(userJobs) 
+      ? userJobs.filter(job => job.userId === currentUser?.id)
+      : [];
     
     const loadSavedJobs = async () => {
       if (currentUser) {
@@ -102,6 +104,10 @@ const ProfilePage = () => {
       await updateJob(editingJob.id, jobData);
       await refreshJobs();
       setEditingJob(null);
+      toast({
+        title: "Propuesta actualizada",
+        description: "La propuesta ha sido actualizada correctamente"
+      });
     } catch (error) {
       toast({
         variant: "destructive",
@@ -119,6 +125,10 @@ const ProfilePage = () => {
       const success = await deleteJob(jobId);
       if (success) {
         await refreshJobs();
+        toast({
+          title: "Propuesta eliminada",
+          description: "La propuesta ha sido eliminada correctamente"
+        });
       }
     } catch (error) {
       toast({
@@ -144,6 +154,9 @@ const ProfilePage = () => {
         title: "Perfil actualizado",
         description: "Tus cambios han sido guardados correctamente"
       });
+      
+      // Reload data to refresh the UI
+      await loadData();
     } catch (error) {
       toast({
         variant: "destructive",
@@ -178,8 +191,6 @@ const ProfilePage = () => {
       
       const objectUrl = URL.createObjectURL(file);
       setPreviewImage(objectUrl);
-      
-      return () => URL.revokeObjectURL(objectUrl);
     }
   };
   
@@ -196,7 +207,7 @@ const ProfilePage = () => {
     
     setIsUploadingPhoto(true);
     try {
-      const photoURL = await uploadProfilePhoto(selectedImage);
+      await uploadProfilePhoto(selectedImage);
       
       toast({
         title: "Foto actualizada",
@@ -204,6 +215,9 @@ const ProfilePage = () => {
       });
       
       setSelectedImage(null);
+      
+      // Reload data to refresh the UI with new photo
+      await loadData();
     } catch (error) {
       console.error('Error al subir la imagen:', error);
       toast({
@@ -216,7 +230,8 @@ const ProfilePage = () => {
     }
   };
 
-  const formatDate = (timestamp: number) => {
+  const formatDate = (timestamp?: number) => {
+    if (!timestamp) return "-";
     const date = new Date(timestamp);
     return date.toLocaleDateString('es-ES', {
       day: '2-digit',
@@ -234,6 +249,11 @@ const ProfilePage = () => {
       </MainLayout>
     );
   }
+
+  // Extract userJobs for this user only
+  const myJobs = Array.isArray(userJobs) 
+    ? userJobs.filter(job => job.userId === currentUser.id)
+    : [];
 
   return (
     <MainLayout>
@@ -312,7 +332,7 @@ const ProfilePage = () => {
                             <SelectValue placeholder="Seleccionar habilidad" />
                           </SelectTrigger>
                           <SelectContent className="dark:bg-gray-800 dark:border-gray-700">
-                            {skillsList
+                            {Array.isArray(skillsList) && skillsList
                               .filter(skill => !profileForm.skills.includes(skill))
                               .map((skill, index) => (
                                 <SelectItem 
@@ -348,11 +368,11 @@ const ProfilePage = () => {
                   <CardContent className="flex flex-col items-center">
                     <Avatar className="h-24 w-24 mb-4 relative group">
                       <AvatarImage 
-                        src={previewImage || currentUser.photoURL || ''} 
-                        alt={currentUser.name} 
+                        src={previewImage || currentUser?.photoURL || ''} 
+                        alt={currentUser?.name || ''} 
                       />
                       <AvatarFallback className="bg-wfc-purple-medium text-white text-2xl">
-                        {currentUser.name?.charAt(0).toUpperCase()}
+                        {currentUser?.name?.charAt(0).toUpperCase() || 'U'}
                       </AvatarFallback>
                       
                       <div 
@@ -374,7 +394,7 @@ const ProfilePage = () => {
                     
                     <div className="space-y-2 w-full">
                       <Button 
-                        variant="fileUpload" 
+                        variant="outline" 
                         className="w-full dark:bg-gray-800 dark:border-gray-700 dark:text-white dark:hover:bg-wfc-purple dark:hover:text-white" 
                         type="button"
                         onClick={triggerFileInput}
@@ -407,7 +427,7 @@ const ProfilePage = () => {
                     <div className="space-y-2">
                       <div className="flex justify-between">
                         <span className="text-gray-600 dark:text-gray-300">Propuestas publicadas</span>
-                        <span className="font-medium dark:text-white">{userJobs.length}</span>
+                        <span className="font-medium dark:text-white">{myJobs.length}</span>
                       </div>
                       <div className="flex justify-between">
                         <span className="text-gray-600 dark:text-gray-300">Propuestas guardadas</span>
@@ -420,7 +440,7 @@ const ProfilePage = () => {
                       <div className="flex justify-between">
                         <span className="text-gray-600 dark:text-gray-300">Miembro desde</span>
                         <span className="font-medium dark:text-white">
-                          {currentUser.joinedAt ? formatDate(currentUser.joinedAt) : "Apr 2025"}
+                          {currentUser?.joinedAt ? formatDate(currentUser.joinedAt) : "Apr 2025"}
                         </span>
                       </div>
                     </div>
@@ -439,7 +459,7 @@ const ProfilePage = () => {
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                {userJobs.length === 0 ? (
+                {myJobs.length === 0 ? (
                   <div className="text-center py-6">
                     <p className="text-gray-500 dark:text-gray-400">Aún no has publicado ninguna propuesta</p>
                     <Button 
@@ -462,7 +482,7 @@ const ProfilePage = () => {
                         />
                       </div>
                     ) : (
-                      userJobs.map((job) => (
+                      myJobs.map((job) => (
                         <div 
                           key={job.id} 
                           className="border border-gray-200 dark:border-gray-700 rounded-lg p-4 hover:border-wfc-purple dark:hover:border-wfc-purple"

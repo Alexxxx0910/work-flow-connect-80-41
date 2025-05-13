@@ -11,20 +11,45 @@ const userModel = {
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
     
+    // Process skills to ensure it's stored as a JSON string
+    const processedSkills = skills ? JSON.stringify(skills) : null;
+    
     // Usado name en lugar de username para ser consistente con la estructura de la BD
     // Usado photoURL en lugar de avatar y isOnline en lugar de status
     const result = await db.query(
       'INSERT INTO "Users" (id, name, email, password, "photoURL", "isOnline", role, bio, skills, "createdAt", "updatedAt") VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, $6, $7, $8, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP) RETURNING id, name, email, "photoURL", role, "createdAt", bio, skills',
-      [username, email, hashedPassword, avatar || null, true, 'client', bio || null, skills ? JSON.stringify(skills) : null]
+      [username, email, hashedPassword, avatar || null, true, 'client', bio || null, processedSkills]
     );
     
-    return result.rows[0];
+    const user = result.rows[0];
+    
+    // Parse skills if it's a JSON string
+    if (user && user.skills && typeof user.skills === 'string') {
+      try {
+        user.skills = JSON.parse(user.skills);
+      } catch (e) {
+        user.skills = [];
+      }
+    }
+    
+    return user;
   },
   
   // Find user by email
   async findByEmail(email) {
     const result = await db.query('SELECT * FROM "Users" WHERE email = $1', [email]);
-    return result.rows[0];
+    const user = result.rows[0];
+    
+    // Parse skills if it's a JSON string
+    if (user && user.skills && typeof user.skills === 'string') {
+      try {
+        user.skills = JSON.parse(user.skills);
+      } catch (e) {
+        user.skills = [];
+      }
+    }
+    
+    return user;
   },
   
   // Find user by ID
@@ -84,16 +109,15 @@ const userModel = {
   async updateProfile(userId, userData) {
     const { username, avatar, bio, skills } = userData;
     
-    // Modificación aquí: en lugar de convertir a JSON, convertimos a la sintaxis de array de PostgreSQL
-    let skillsArray = null;
+    // Process skills to ensure it's stored as a JSON string
+    let processedSkills = null;
     if (skills && Array.isArray(skills)) {
-      // Convertir el array de JavaScript a formato de array de PostgreSQL
-      skillsArray = `{${skills.map(skill => `"${skill}"`).join(',')}}`;
+      processedSkills = JSON.stringify(skills);
     }
     
     const result = await db.query(
       'UPDATE "Users" SET name = COALESCE($1, name), "photoURL" = COALESCE($2, "photoURL"), bio = COALESCE($3, bio), skills = COALESCE($4, skills), "updatedAt" = CURRENT_TIMESTAMP WHERE id = $5 RETURNING id, name, email, "photoURL" as avatar, "isOnline" as status, bio, skills',
-      [username, avatar, bio, skillsArray, userId]
+      [username, avatar, bio, processedSkills, userId]
     );
     
     const user = result.rows[0];

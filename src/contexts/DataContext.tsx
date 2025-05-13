@@ -3,6 +3,7 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 import { JobType, UserType } from '@/types';
 import { userService } from '@/services/api';
 import { JOB_CATEGORIES, SKILLS_LIST } from '@/lib/mockData';
+import { toast } from '@/components/ui/use-toast';
 
 export type { UserType };
 
@@ -47,7 +48,9 @@ export const DataProvider = ({ children }: { children: React.ReactNode }) => {
         email: user.email,
         role: user.role || "freelancer", // Default role, could be different based on your backend
         photoURL: user.avatar || user.photoURL,
-        joinedAt: user.created_at ? new Date(user.created_at).getTime() : Date.now()
+        joinedAt: user.created_at ? new Date(user.created_at).getTime() : Date.now(),
+        bio: user.bio || '',
+        skills: Array.isArray(user.skills) ? user.skills : []
       }));
       
       console.log("Loaded users:", transformedUsers);
@@ -59,6 +62,11 @@ export const DataProvider = ({ children }: { children: React.ReactNode }) => {
       setSkillsList(SKILLS_LIST);
     } catch (error) {
       console.error("Error loading data:", error);
+      toast({
+        title: "Error",
+        description: "No se pudieron cargar los datos del usuario",
+        variant: "destructive"
+      });
     } finally {
       setLoading(false);
     }
