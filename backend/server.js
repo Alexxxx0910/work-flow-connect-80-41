@@ -1,4 +1,3 @@
-
 const express = require('express');
 const http = require('http');
 const socketIo = require('socket.io');
@@ -39,7 +38,32 @@ app.use(cors(corsOptions));
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
-// API Routes
+// Temporary fix for missing updatePhoto method
+// Override the route to use a direct implementation
+app.post('/api/users/profile/photo', authenticateToken, async (req, res) => {
+  try {
+    const userModel = require('./models/userModel');
+    const { photoURL } = req.body;
+    const userId = req.user.userId;
+    
+    if (!photoURL) {
+      return res.status(400).json({ message: 'Photo URL is required' });
+    }
+    
+    const updatedUser = await userModel.update(userId, { photoURL });
+    
+    if (!updatedUser) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+    
+    res.json(updatedUser);
+  } catch (error) {
+    console.error('Error updating user photo:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// API Routes - we keep these but the specific photo route will be handled by our implementation above
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/chats', chatRoutes);
